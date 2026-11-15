@@ -9,7 +9,8 @@ from PySide6.QtGui import QFont, QTextBlockFormat, QTextCursor, QPageSize, QPage
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QTextEdit, QComboBox, QFileDialog, QMessageBox, QInputDialog, QCompleter
+    QTextEdit, QComboBox, QFileDialog, QMessageBox, QInputDialog, QCompleter,
+    QScrollArea, QCheckBox, QSizePolicy, QFrame
 )
 
 ELEMENTS = ("Scene Heading", "Action", "Character", "Dialogue", "Parenthetical", "Transition")
@@ -25,6 +26,10 @@ class WritingEditor(QTextEdit):
         self.mode = "Action"
         self.characters = set()
         self.setAcceptRichText(True)
+        self.setFixedWidth(816)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.document().documentLayout().documentSizeChanged.connect(self.resize_to_document)
         self.setFont(QFont("Courier New", 12))
         self.setStyleSheet("QTextEdit { background: #fffefa; color: #202329; border: 1px solid #c9cbd0; selection-background-color: #386fa5; }")
         self.document().setDocumentMargin(26)
@@ -35,6 +40,10 @@ class WritingEditor(QTextEdit):
         self.completer.activated.connect(self.complete_character)
         self.textChanged.connect(self.suggest_character)
         self.cursorPositionChanged.connect(self.sync_element)
+
+    def resize_to_document(self, size):
+        # Let the outer window scroll rather than trapping scrolling in the editor.
+        self.setFixedHeight(max(1056, int(size.height()) + 70))
 
     def screenplay(self):
         return self.owner.kind == "Screenplay"
@@ -107,6 +116,10 @@ class WritingEditor(QTextEdit):
             if key == Qt.Key_Escape:
                 self.completer.popup().hide()
                 return
+        if self.mode == "Character" and event.text() and event.text().isalpha() and not event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier):
+            cursor = self.textCursor()
+            cursor.insertText(event.text().upper())
+            return
         if key == Qt.Key_Tab and event.modifiers() == Qt.NoModifier:
             self.set_element(ELEMENTS[(ELEMENTS.index(self.mode) + 1) % len(ELEMENTS)])
             return
@@ -121,7 +134,7 @@ class WritingEditor(QTextEdit):
             elif current == "Scene Heading":
                 following = "Action"
             elif current in ("Dialogue", "Parenthetical"):
-                following = "Dialogue" if previous else "Action"
+                following = ("Character" if previous else "Action") if self.owner.dialogue_flow.isChecked() else ("Dialogue" if previous else "Action")
             elif current == "Transition":
                 following = "Scene Heading"
             else:
@@ -158,12 +171,29 @@ class Window(QMainWindow):
         self.element.setCurrentText("Action")
         self.element.currentTextChanged.connect(self.set_element)
         top.addWidget(self.element)
+        top.addSpacing(20)
+        self.dialogue_flow = QCheckBox("Dialogue Flow")
+        self.dialogue_flow.setToolTip("Enter after dialogue starts the next character cue")
+        top.addWidget(self.dialogue_flow)
         top.addStretch()
         layout.addLayout(top)
         self.editor = WritingEditor(self)
-        layout.addWidget(self.editor, 1)
-        self.setCentralWidget(central)
+        page_row = QHBoxLayout()
+        page_row.addStretch(1)
+        page_row.addWidget(self.editor, 0, Qt.AlignTop)
+        page_row.addStretch(1)
+        layout.addLayout(page_row, 1)
+        layout.addStretch(0)
+        self.outer_scroll = QScrollArea(self)
+        self.outer_scroll.setWidgetResizable(True)
+        self.outer_scroll.setFrameShape(QFrame.NoFrame)
+        self.outer_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.outer_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        central.setMinimumWidth(860)
+        self.outer_scroll.setWidget(central)
+        self.setCentralWidget(self.outer_scroll)
         self.editor.textChanged.connect(self.mark_dirty)
+        self.dialogue_flow.toggled.connect(self.editor.setFocus)
         self.editor.cursorPositionChanged.connect(self.update_status)
         self.make_menus()
         self.statusBar().showMessage("Screenplay · Tab changes element · Return advances · ⌘S saves")
@@ -216,6 +246,7 @@ class Window(QMainWindow):
         script = mode == "Screenplay"
         self.element.setVisible(script)
         self.element_label.setVisible(script)
+        self.dialogue_flow.setVisible(script)
         self.editor.completer.popup().hide()
         self.editor.setFont(QFont("Courier New", 12) if script else QFont("Georgia", 12))
         if script:
