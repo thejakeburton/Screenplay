@@ -193,7 +193,6 @@ class Window(QMainWindow):
         self.outer_scroll.setWidget(central)
         self.setCentralWidget(self.outer_scroll)
         self.editor.textChanged.connect(self.mark_dirty)
-        self.dialogue_flow.toggled.connect(self.editor.setFocus)
         self.editor.cursorPositionChanged.connect(self.update_status)
         self.make_menus()
         self.statusBar().showMessage("Screenplay · Tab changes element · Return advances · ⌘S saves")
