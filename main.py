@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
 ELEMENTS = ("Scene Heading", "Action", "Character", "Dialogue", "Parenthetical", "Transition")
 # QTextBlockFormat left margins relative to the screenplay's 1.5-inch page margin.
 INDENT = (0, 0, 160, 90, 120, 220)
-RIGHT = (0, 0, 0, 115, 100, 0)
+# Dialogue should wrap in a narrow screenplay column, not across the page.
+RIGHT = (0, 0, 0, 320, 295, 0)
 
 
 class WritingEditor(QTextEdit):
