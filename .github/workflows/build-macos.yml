@@ -1,0 +1,56 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+      - name: Validate Python syntax
+        run: python -m py_compile main.py
+      - name: Build Screenplay.app
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --name Screenplay main.py
+      - name: Smoke test app bundle
+        run: |
+          test -x dist/Screenplay.app/Contents/MacOS/Screenplay
+          python - <<'PY'
+          import os, subprocess, time
+          env = dict(os.environ)
+          env['QT_QPA_PLATFORM'] = 'offscreen'
+          p = subprocess.Popen(['dist/Screenplay.app/Contents/MacOS/Screenplay'], env=env,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          try:
+              time.sleep(5)
+              if p.poll() is not None:
+                  out, err = p.communicate(timeout=5)
+                  raise RuntimeError('App exited during startup:\n' + out.decode(errors='replace') + '\n' + err.decode(errors='replace'))
+          finally:
+              if p.poll() is None:
+                  p.terminate()
+                  try:
+                      p.wait(timeout=10)
+                  except subprocess.TimeoutExpired:
+                      p.kill()
+          PY
+      - name: Package Mac app
+        run: ditto -c -k --sequesterRsrc --keepParent dist/Screenplay.app Screenplay-macOS.zip
+      - name: Upload downloadable app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Screenplay-macOS
+          path: Screenplay-macOS.zip
+          if-no-files-found: error
