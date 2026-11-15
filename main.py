@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QStringListModel
+from PySide6.QtCore import Qt, QTimer, QStringListModel, QMarginsF
 from PySide6.QtGui import QFont, QTextBlockFormat, QTextCursor, QPageSize, QPageLayout, QKeySequence, QAction, QShortcut
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
@@ -319,9 +319,9 @@ class Window(QMainWindow):
             # QTextDocument printing respects block indentation and styling.
             doc = self.editor.document().clone()
             if self.kind == "Screenplay":
-                printer.setPageMargins(38, 25, 25, 25, QPageLayout.Millimeter)
+                printer.setPageMargins(QMarginsF(38, 25, 25, 25), QPageLayout.Millimeter)
             else:
-                printer.setPageMargins(25, 25, 25, 25, QPageLayout.Millimeter)
+                printer.setPageMargins(QMarginsF(25, 25, 25, 25), QPageLayout.Millimeter)
             doc.print_(printer)
             QMessageBox.information(self, "PDF exported", "Saved PDF to:\n" + path)
         except Exception as exc:
